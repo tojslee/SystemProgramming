@@ -1,0 +1,1 @@
+cmd_/home/jslee/Desktop/Assignment1/hw1_module.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/jslee/Desktop/Assignment1/hw1_module.ko /home/jslee/Desktop/Assignment1/hw1_module.o /home/jslee/Desktop/Assignment1/hw1_module.mod.o ;  true
