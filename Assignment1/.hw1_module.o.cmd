@@ -821,6 +821,18 @@ deps_/home/jslee/Desktop/SystemPrograming/Assignment1/hw1_module.o := \
     $(wildcard include/config/posix/mqueue.h) \
     $(wildcard include/config/bpf/syscall.h) \
     $(wildcard include/config/net.h) \
+  include/linux/sched/signal.h \
+    $(wildcard include/config/sched/autogroup.h) \
+    $(wildcard include/config/bsd/process/acct.h) \
+    $(wildcard include/config/taskstats.h) \
+    $(wildcard include/config/audit.h) \
+    $(wildcard include/config/stack/growsup.h) \
+  include/linux/signal.h \
+  include/linux/sched/jobctl.h \
+  include/linux/sched/task.h \
+    $(wildcard include/config/have/copy/thread/tls.h) \
+    $(wildcard include/config/have/exit/thread.h) \
+    $(wildcard include/config/arch/wants/dynamic/task/struct.h) \
 
 /home/jslee/Desktop/SystemPrograming/Assignment1/hw1_module.o: $(deps_/home/jslee/Desktop/SystemPrograming/Assignment1/hw1_module.o)
 

@@ -2,6 +2,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/fs.h>
+#include <linux/sched/signal.h>
 
 #define DIR_NAME "hw1"
 #define MAX_PID 131072
@@ -49,24 +50,61 @@ static int hw1_seq_show(struct seq_file *s, void *v){
 	//seq_printf(s, "%s\n", fileName);
 
 	if(strcmp(fileName, top) == 0){ // if the file name is "top"
-		//int total_task_num, HZ;
+		int total_task_num = 0;
+		struct task_struct *p;
+		for_each_process(p) {
+			total_task_num += 1;
+		}
 		//seq_printf(s, "top\n");
 		print_bar(s);
 		seq_printf(s, "[System Programming Assignment 1]\n");
 		seq_printf(s, "ID: 2018147518, Name: Lee, Jisoo\n");
-		//seq_printf(s, "Total %d tasks, %dHz\n", total_task_num, HZ);
+		seq_printf(s, "Total %d tasks, %dHz\n", total_task_num, HZ);
 		print_bar(s);
-
-
 	}
 	else{ // pid
 		//seq_printf(s, "pid\n");
-		print_bar(s);
-		seq_printf(s, "[System Programming Assignment 1]\n");
-		seq_printf(s, "ID: 2018147518, Name: Lee, Jisoo\n");
-		print_bar(s);
+		struct task_struct *p;
+		bool flag = false;
+		int pid = 0;
 
+		while(*fileName){
+			pid = ((*fileName) - '0') + pid*10;
+			fileName++;
+		}
+		//seq_printf(s, "%d\n", pid);
 
+		for_each_process(p) {
+			if(pid == p->pid){
+				flag = true;
+				break;
+			}
+		}
+
+		if(flag){ // not invalid
+			print_bar(s);
+			seq_printf(s, "[System Programming Assignment 1]\n");
+			seq_printf(s, "ID: 2018147518, Name: Lee, Jisoo\n");
+			print_bar(s);
+
+			char *type;
+			if(p->prio > 99){type = "CFS";}
+			else{type = "RT";}
+			seq_printf(s, "Command: %s\nType: %s\nPID :%d\n", p->comm, type, p->pid);
+			seq_printf(s, "Start Time: %lld (ms)\n", p->real_start_time/1000000);
+			seq_printf(s, "Last Scheduled Time: %lld (ms)\n", p->sched_info.last_arrival/1000000);
+			// recent_used_cpu in real assignment kernel version
+			// no variable named recent_used_cpu in 4.15.0 version kernel
+			seq_printf(s, "Last CPU #: %d\nPriority: %d\n", p->cpu, p->prio);
+			seq_printf(s, "Total Execution Time: %d (ms)\n", p->se.sum_exec_runtime/1000000);
+
+			// for each cpu print exec time
+
+			if(p->prio > 99){
+				seq_printf(s, "Weight: %d\n", p->se.load.weight);
+				seq_printf(s, "Virtual Runtime: %d\n", p->se.vruntime);
+			}
+		}
 	}
 
 	return 0;
