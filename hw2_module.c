@@ -5,7 +5,7 @@
 #include <linux/sched/signal.h>
 #include <linux/cpumask.h>
 #include <linux/timer.h>
-#include <linux/giffies.h>
+#include <linux/interrupt.h>
 
 #define DIR_NAME "hw2"
 #define MAX_PID 131072
@@ -13,11 +13,11 @@
 MODULE_AUTHOR("Lee, Jisoo");
 MODULE_LICENSE("GPL");
 
-static int pid = 2;
-static int period = 10;
+int pid;
+int period = 10;
 
-//module_param(period, int, 0);
-//module_param(pid, int, 0);
+module_param(period, int, 0);
+module_param(pid, int, 0);
 
 
 static void *hw2_seq_start(struct seq_file *s, loff_t *pos){
@@ -50,7 +50,7 @@ static void print_bar(struct seq_file *s){
 
 static int hw2_seq_show(struct seq_file *s, void *v){
 	loff_t *spos = (loff_t *)v;
-	int ret;
+	//int ret;
 
 	// get file name
 	//struct file *fp = s->file;
@@ -107,65 +107,45 @@ static const struct file_operations hw2_file_ops = {
 	.release = seq_release
 };
 
-static void __exit hw2_exit(void){
-	char pids[100];
-	int i;
-	for(i = 1;i<=MAX_PID;i++){
-		sprintf(pids, "%d", i);
-		remove_proc_entry(pids, NULL);
-	}
-	remove_proc_entry(DIR_NAME, NULL);
+// timer with tasklet
+struct timer_list tasklet_timer;
+struct tasklet_struct hw2_tasklet;
+
+void tasklet_timer_handler(struct timer_list *tasklet_timer){
+	// call tasklet every period
+	printk("timer\n");
+	tasklet_schedule(&hw2_tasklet);
+	// add new timer
+	mod_timer(tasklet_timer, jiffies + HZ*period);
 }
 
-static int __init hw2_init(void){
-	char pids[100];
-	//int i;
-	struct proc_dir_entry *proc_dir_entry;
-	struct proc_dir_entry *proc_file_entry;
-	proc_dir_entry = proc_mkdir(DIR_NAME, NULL);
-	/*for(i = 1;i<=MAX_PID;i++){
-		sprintf(pids, "%d", i);
-		proc_file_entry = proc_create(pids, 0, proc_dir_entry, &hw2_file_ops);
-	}*/
-	sprintf(pids, "%d", pid);
-	proc_file_entry = proc_create(pids, 0, proc_dir_entry, &hw2_file_ops);
-	return 0;
-}
-
-module_init(hw2_init);
-module_exit(hw2_exit);
-
-// tasklet updating data
-
-
-/*void tasklet_function(unsigned long data){
+void tasklet_function(unsigned long data){
 	// update data
 	printk("tasklet!\n");
 }
 
-DECLARE_TASKLET(hw2_tasklet, tasklet_function, pid);*/
+static int __init hw2_init(void){
+	//file creation
+	struct proc_dir_entry *proc_file_entry;
+	proc_file_entry = proc_create(DIR_NAME, 0, NULL, &hw2_file_ops);
+	printk("%d %d\n", period, pid);
 
-// timer with tasklet
-struct timer_list tasklet_timer;
-
-
-void tasklet_timer_handler(unsigned long arg){
-	// call tasklet every period
-	//tasklet_schedule(&hw2_tasklet);
-	printk("timer\n");
-	// add new timer
+	// timer initialization
+	timer_setup(&tasklet_timer, tasklet_timer_handler, 0);
 	mod_timer(&tasklet_timer, jiffies + HZ*period);
-}
 
-void tasklet_timer_init(){
-	init_timer(&tasklet_timer);
-	tasklet_timer.functions = tasklet_timer_handler;
-	tasklet_timer.expires = jiffies + HZ*period;
+	//tasklet initialization
+	tasklet_init(&hw2_tasklet, tasklet_function, 0);
 
-	add_timer(&tasklet_timer);
+	return 0;
 }
 
 
-//del_timer(&tasklet_timer);
+static void __exit hw2_exit(void){
+	remove_proc_entry(DIR_NAME, NULL);
+	del_timer(&tasklet_timer);
+	tasklet_kill(&hw2_tasklet);
+}
 
-
+module_init(hw2_init);
+module_exit(hw2_exit);
