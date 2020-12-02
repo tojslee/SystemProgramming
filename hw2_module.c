@@ -6,6 +6,8 @@
 #include <linux/cpumask.h>
 #include <linux/timer.h>
 #include <linux/interrupt.h>
+#include <linux/spinlock.h>
+#include <linux/mm.h>
 
 #define DIR_NAME "hw2"
 #define MAX_PID 131072
@@ -15,6 +17,19 @@ MODULE_LICENSE("GPL");
 
 int pid;
 int period = 10;
+int idx = 1;
+
+// for synchronization
+spinlock_t tasklet_lock;
+DEFINE_SPINLOCK(tasklet_lock);
+
+// for information of the process (tasklet update)
+char *comm;
+static long page_size = PAGE_SIZE;
+pgd_t* pgd_base;
+struct vm_area_struct *mmap;
+long last_update_time;
+int temp;
 
 module_param(period, int, 0);
 module_param(pid, int, 0);
@@ -57,24 +72,28 @@ static int hw2_seq_show(struct seq_file *s, void *v){
 	//const unsigned char *fileName = fp->f_path.dentry->d_name.name;
 
 	// check if process is valid
-	struct task_struct *p;
 	bool flag = false;
-	for_each_process(p) {
-		if(pid == p->pid){
-			flag = true;
-			break;
-		}
+	if(last_update_time == -1){
+		flag = false;
 	}
-
-	if(flag){
-		if(p->mm == NULL){
-			flag = false;
-		}
-	}
+	else{flag = true;}
 
 
 	if(flag){ // valid process
-		
+		print_bar(s);
+		seq_printf(s, "[System Programming Assignment 2]\n");
+		seq_printf(s, "ID: 2018147518, Name: Lee, Jisoo\n");
+		seq_printf(s, "Command: %s, PID: %d\n", comm, pid);
+		print_bar(s);
+
+		seq_printf(s, "Last update time: %llu ms\n", last_update_time);
+		seq_printf(s, "Page Size: %d KB\n", page_size);
+		seq_printf(s, "PGD Base Address: 0x%08lx\n", pgd_base);
+		seq_printf(s, "temp: %d\n", temp);
+		print_bar(s);
+
+		//index = 1;
+
 	}
 	else{ // invlid process
 		print_bar(s);
@@ -122,6 +141,37 @@ void tasklet_timer_handler(struct timer_list *tasklet_timer){
 void tasklet_function(unsigned long data){
 	// update data
 	printk("tasklet!\n");
+	
+	struct task_struct *p;
+	bool flag = false;
+	for_each_process(p) {
+		if(pid == p->pid){
+			flag = true;
+			break;
+		}
+	}
+
+	if(flag){
+		if(p->mm == NULL){
+			flag = false;
+		}
+	}
+
+	// for synchronization of informatioin updating in tasklet
+	struct timespec current_time;
+	spin_lock(&tasklet_lock);
+	if(flag){ // existing process
+		comm = p->comm;
+		pgd_base = p->mm->pgd;
+		getnstimeofday(&current_time);
+		last_update_time = current_time.tv_sec*1000+current_time.tv_nsec/1000000;
+		temp = idx++;
+		memcpy(mmap, p->mm->mmap, sizeof(struct vm_area_struct));
+	}
+	else{ // else
+		last_update_time = -1;
+	}
+	spin_unlock(&tasklet_lock);
 }
 
 static int __init hw2_init(void){
