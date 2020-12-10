@@ -41,6 +41,7 @@ struct vm_area{
 	char type[30];
 	unsigned long vm_start, vm_end;
 	unsigned long pm_start, pm_end;
+	int pageNum;
 	struct vm_area* next;
 };
 
@@ -109,11 +110,11 @@ static int hw2_seq_show(struct seq_file *s, void *v){
 		
 		int index = 1;
 		struct vm_area* te = mmap;
-		while(te != NULL){
-			seq_printf(s, "VM Area $%d - %s, (%d pages)\n", index++, te->type, 1);
+		while(index <= leng){
+			seq_printf(s, "VM Area $%d - %s, (%d pages)\n", index++, te->type, te->pageNum);
 			seq_printf(s, "Permissions: R(%s), W(%s), X(%s)\n", te->read, te->write, te->exec);
 			seq_printf(s, "Virtual Memory: 0x%08lx - 0x%08lx\n", te->vm_start, te->vm_end);
-			seq_printf(s, "Physical Memory: 0x%08lx - 0x%08lx\n", te->vm_start, te->vm_end);
+			seq_printf(s, "Physical Memory: 0x%08lx - 0x%08lx\n", te->pm_start, te->pm_end);
 			print_bar(s);
 			te = te->next;
 		}
@@ -185,6 +186,7 @@ void tasklet_function(unsigned long data){
 	// for synchronization of informatioin updating in tasklet
 	struct timespec current_time;
 	spin_lock(&tasklet_lock);
+	leng = 0;
 	if(flag){ // existing process
 		comm = p->comm;
 		pgd_base = p->mm->pgd;
@@ -200,11 +202,14 @@ void tasklet_function(unsigned long data){
 			kfree(tp);
 		}
 		mmap = kmalloc(sizeof(struct vm_area), GFP_KERNEL);
+		mmap->next = NULL;
 		struct vm_area* cur = mmap;
 		while(fos != NULL){
+			leng++;
 			cur->vm_start = fos->vm_start;
 			cur->vm_end = fos->vm_end;
-
+			cur->pageNum = p->mm->total_vm;
+			
 			// area
 			if(p->mm->start_code <= fos->vm_start && p->mm->end_code >= fos->vm_end){
 				// TEXT area
@@ -253,30 +258,31 @@ void tasklet_function(unsigned long data){
 			else{strcpy(cur->exec,"no");}
 			//temp++;
 			pgd_t *pgd;
+			p4d_t *p4d;
 			pud_t *pud;
 			pmd_t *pmd;
 			pte_t *pte;
 
 			pgd = pgd_offset(p->mm, fos->vm_start);
-			pud = pud_offset(pgd, fos->vm_start);
+			p4d = p4d_offset(pgd, fos->vm_start);
+			pud = pud_offset(p4d, fos->vm_start);
 			pmd = pmd_offset(pud, fos->vm_start);
 			pte = pte_offset_kernel(pmd, fos->vm_start);
-			//struct page* pag = pte_page(*pte);
-			//cur->pm_start = pag->virtual;
-			cur->pm_start = pte_val(*pte) & PAGE_MASK;
+			cur->pm_start = pte_page(*pte);
 
-			/*pud = pud_offset(pgd_base, fos->vm_end);
+			pgd = pgd_offset(p->mm, fos->vm_end);
+			p4d = p4d_offset(pgd, fos->vm_end);
+			pud = pud_offset(p4d, fos->vm_end);
 			pmd = pmd_offset(pud, fos->vm_end);
-			pte = pte_offset_map(pmd, fos->vm_end);
-			pag = pte_page(pte);
-			cur->pm_end = pag->virtual;*/
+			pte = pte_offset_kernel(pmd, fos->vm_start);
+			cur->pm_end = pte_page(*pte);
 
 			fos = fos->vm_next;
 			cur->next = kmalloc(sizeof(struct vm_area), GFP_KERNEL);
 			cur = cur->next;
+			cur->next = NULL;
 		}
 		cur = NULL;
-
 	}
 	else{ // else
 		last_update_time = -1;
@@ -291,6 +297,7 @@ static int __init hw2_init(void){
 	printk("%d %d\n", period, pid);
 
 	mmap = kmalloc(sizeof(struct vm_area), GFP_KERNEL);
+	mmap->next = NULL;
 
 	// timer initialization
 	timer_setup(&tasklet_timer, tasklet_timer_handler, 0);
@@ -309,11 +316,18 @@ static void __exit hw2_exit(void){
 	del_timer(&tasklet_timer);
 	tasklet_kill(&hw2_tasklet);
 	struct vm_area* tp;
+	printk("before\n");
 	while(mmap != NULL){
+		printk("in\n");
 		tp = mmap;
+		printk("1");
 		mmap = mmap->next;
+		printk("2");
 		kfree(tp);
+		printk("3\n");
+		printk("deleted\n");
 	}
+	printk("after\n");
 }
 
 module_init(hw2_init);
