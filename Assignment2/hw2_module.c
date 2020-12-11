@@ -158,7 +158,6 @@ struct tasklet_struct hw2_tasklet;
 
 void tasklet_timer_handler(struct timer_list *tasklet_timer){
 	// call tasklet every period
-	printk("timer\n");
 	tasklet_schedule(&hw2_tasklet);
 	// add new timer
 	mod_timer(tasklet_timer, jiffies + HZ*period);
@@ -166,7 +165,6 @@ void tasklet_timer_handler(struct timer_list *tasklet_timer){
 
 void tasklet_function(unsigned long data){
 	// update data
-	printk("tasklet!\n");
 	
 	struct task_struct *p;
 	bool flag = false;
@@ -243,7 +241,7 @@ void tasklet_function(unsigned long data){
 			}
 
 			// access
-			int flags = p->mm->mmap->vm_flags;
+			int flags = fos->vm_flags;
 			if(flags & VM_READ){
 				strcpy(cur->read,"yes");
 			}
@@ -294,7 +292,6 @@ static int __init hw2_init(void){
 	//file creation
 	struct proc_dir_entry *proc_file_entry;
 	proc_file_entry = proc_create(DIR_NAME, 0, NULL, &hw2_file_ops);
-	printk("%d %d\n", period, pid);
 
 	mmap = kmalloc(sizeof(struct vm_area), GFP_KERNEL);
 	mmap->next = NULL;
@@ -316,18 +313,11 @@ static void __exit hw2_exit(void){
 	del_timer(&tasklet_timer);
 	tasklet_kill(&hw2_tasklet);
 	struct vm_area* tp;
-	printk("before\n");
 	while(mmap != NULL){
-		printk("in\n");
 		tp = mmap;
-		printk("1");
 		mmap = mmap->next;
-		printk("2");
 		kfree(tp);
-		printk("3\n");
-		printk("deleted\n");
 	}
-	printk("after\n");
 }
 
 module_init(hw2_init);
